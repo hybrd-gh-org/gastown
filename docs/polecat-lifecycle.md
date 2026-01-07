@@ -52,6 +52,29 @@ This worktree:
 
 The Witness never destroys sandboxes mid-work. Only `nuke` removes them.
 
+#### Worktree File Copying
+
+Git worktrees don't inherit untracked files (like `.env`) from the source branch.
+Gas Town solves this by copying configured files when creating new worktrees.
+
+**Config-based** (in rig's `config.json`):
+```json
+{
+  "worktree_copy_files": [".env", ".env.local"]
+}
+```
+
+**Script-based** (for complex logic):
+```bash
+# <rig>/hooks/post-worktree-create.sh
+#!/bin/bash
+cp "$GT_RIG/mayor/rig/.env" "$1/.env"
+```
+
+Files are copied from `mayor/rig/` (the canonical checkout) to the new worktree.
+Missing source files are silently skipped. The hook runs first, then config-based
+copying.
+
 ### Slot Layer
 
 The slot is the **name allocation** from the polecat pool:

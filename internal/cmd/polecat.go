@@ -65,6 +65,13 @@ var polecatAddCmd = &cobra.Command{
 Creates a polecat directory, clones the rig repo, creates a work branch,
 and initializes state.
 
+After creating the worktree, copies configured files from mayor/rig/ to
+the new worktree (e.g., .env files). Configure via:
+
+  1. Rig config.json: "worktree_copy_files": [".env", ".env.local"]
+  2. Hook script: <rig>/hooks/post-worktree-create.sh
+     (receives worktree path as $1, GT_RIG and GT_WORKTREE_PATH env vars)
+
 Example:
   gt polecat add greenplace Toast`,
 	Args: cobra.ExactArgs(2),

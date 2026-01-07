@@ -44,6 +44,7 @@ var (
 	mqIntegrationLandForce     bool
 	mqIntegrationLandSkipTests bool
 	mqIntegrationLandDryRun    bool
+	mqIntegrationLandPR        bool
 
 	// Integration status flags
 	mqIntegrationStatusJSON bool
@@ -214,7 +215,7 @@ var mqIntegrationLandCmd = &cobra.Command{
 Lands all work for an epic by merging its integration branch to main
 as a single atomic merge commit.
 
-Actions:
+Actions (default):
   1. Verify all MRs targeting integration/<epic> are merged
   2. Verify integration branch exists
   3. Merge integration/<epic> to main (--no-ff)
@@ -223,15 +224,24 @@ Actions:
   6. Delete integration branch
   7. Update epic status
 
+Actions (--pr):
+  1. Verify all MRs targeting integration/<epic> are merged
+  2. Verify integration branch exists
+  3. Push integration branch to origin
+  4. Create PR via gh pr create targeting main
+  5. Return PR URL (does NOT delete integration branch)
+
 Options:
   --force       Land even if some MRs still open
-  --skip-tests  Skip test run
+  --skip-tests  Skip test run (direct merge only)
   --dry-run     Preview only, make no changes
+  --pr          Create PR to main instead of merging directly
 
 Examples:
   gt mq integration land gt-auth-epic
   gt mq integration land gt-auth-epic --dry-run
-  gt mq integration land gt-auth-epic --force --skip-tests`,
+  gt mq integration land gt-auth-epic --force --skip-tests
+  gt mq integration land gt-auth-epic --pr`,
 	Args: cobra.ExactArgs(1),
 	RunE: runMqIntegrationLand,
 }
@@ -293,6 +303,7 @@ func init() {
 	mqIntegrationLandCmd.Flags().BoolVar(&mqIntegrationLandForce, "force", false, "Land even if some MRs still open")
 	mqIntegrationLandCmd.Flags().BoolVar(&mqIntegrationLandSkipTests, "skip-tests", false, "Skip test run")
 	mqIntegrationLandCmd.Flags().BoolVar(&mqIntegrationLandDryRun, "dry-run", false, "Preview only, make no changes")
+	mqIntegrationLandCmd.Flags().BoolVar(&mqIntegrationLandPR, "pr", false, "Create PR to main instead of merging directly")
 	mqIntegrationCmd.AddCommand(mqIntegrationLandCmd)
 
 	// Integration status flags
