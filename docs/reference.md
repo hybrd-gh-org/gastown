@@ -71,8 +71,28 @@ Debug routing: `BD_DEBUG_ROUTING=1 bd show <id>`
   "type": "rig",
   "name": "myproject",
   "git_url": "https://github.com/...",
-  "beads": { "prefix": "mp" }
+  "beads": { "prefix": "mp" },
+  "worktree_copy_files": [".env", ".env.local"]
 }
+```
+
+| Field | Description |
+|-------|-------------|
+| `worktree_copy_files` | Files to copy from `mayor/rig/` to new polecat worktrees |
+
+### Worktree Hooks (`<rig>/hooks/`)
+
+Custom scripts that run during worktree lifecycle events:
+
+| Hook | Trigger | Arguments | Environment |
+|------|---------|-----------|-------------|
+| `post-worktree-create.sh` | After `gt polecat add` | `$1` = worktree path | `GT_RIG`, `GT_WORKTREE_PATH` |
+
+Example hook:
+```bash
+#!/bin/bash
+# Copy additional untracked files to new polecat worktrees
+cp "$GT_RIG/mayor/rig/secrets.json" "$1/secrets.json" 2>/dev/null || true
 ```
 
 ### Settings (`settings/config.json`)
