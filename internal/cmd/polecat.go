@@ -17,6 +17,7 @@ import (
 	"github.com/steveyegge/gastown/internal/rig"
 	"github.com/steveyegge/gastown/internal/style"
 	"github.com/steveyegge/gastown/internal/tmux"
+	"github.com/steveyegge/gastown/internal/workspace"
 )
 
 // Polecat command flags
@@ -999,7 +1000,10 @@ func runPolecatCheckRecovery(cmd *cobra.Command, args []string) error {
 	// We need to read it directly from beads since manager doesn't expose it
 	rigPath := r.Path
 	bd := beads.New(rigPath)
-	agentBeadID := beads.PolecatBeadID(rigName, polecatName)
+	// Use the rig's configured prefix (not hardcoded "gt-") for agent bead lookup
+	townRoot, _ := workspace.FindFromCwdOrError()
+	prefix := beads.GetPrefixForRig(townRoot, rigName)
+	agentBeadID := beads.PolecatBeadIDWithPrefix(prefix, rigName, polecatName)
 	_, fields, err := bd.GetAgentBead(agentBeadID)
 
 	status := RecoveryStatus{
@@ -1242,6 +1246,9 @@ func runPolecatNuke(cmd *cobra.Command, args []string) error {
 		}
 		var blocked []blockReason
 
+		// Get townRoot once for prefix lookups
+		townRoot, _ := workspace.FindFromCwdOrError()
+
 		for _, p := range toNuke {
 			var reasons []string
 
@@ -1250,7 +1257,9 @@ func runPolecatNuke(cmd *cobra.Command, args []string) error {
 
 			// Check 1: Unpushed commits via cleanup_status or git state
 			bd := beads.New(p.r.Path)
-			agentBeadID := beads.PolecatBeadID(p.rigName, p.polecatName)
+			// Use the rig's configured prefix (not hardcoded "gt-") for agent bead lookup
+			prefix := beads.GetPrefixForRig(townRoot, p.rigName)
+			agentBeadID := beads.PolecatBeadIDWithPrefix(prefix, p.rigName, p.polecatName)
 			agentIssue, fields, err := bd.GetAgentBead(agentBeadID)
 
 			if err != nil || fields == nil {
@@ -1353,19 +1362,25 @@ func runPolecatNuke(cmd *cobra.Command, args []string) error {
 	var nukeErrors []string
 	nuked := 0
 
+	// Get townRoot once for prefix lookups in the loop
+	nukeTownRoot, _ := workspace.FindFromCwdOrError()
+
 	for _, p := range toNuke {
+		// Use the rig's configured prefix (not hardcoded "gt-") for agent bead lookup
+		nukePrefix := beads.GetPrefixForRig(nukeTownRoot, p.rigName)
+
 		if polecatNukeDryRun {
 			fmt.Printf("Would nuke %s/%s:\n", p.rigName, p.polecatName)
 			fmt.Printf("  - Kill session: gt-%s-%s\n", p.rigName, p.polecatName)
 			fmt.Printf("  - Delete worktree: %s/polecats/%s\n", p.r.Path, p.polecatName)
 			fmt.Printf("  - Delete branch (if exists)\n")
-			fmt.Printf("  - Close agent bead: %s\n", beads.PolecatBeadID(p.rigName, p.polecatName))
+			fmt.Printf("  - Close agent bead: %s\n", beads.PolecatBeadIDWithPrefix(nukePrefix, p.rigName, p.polecatName))
 
 			// Show safety check status in dry-run
 			fmt.Printf("\n  Safety checks:\n")
 			polecatInfo, infoErr := p.mgr.Get(p.polecatName)
 			bd := beads.New(p.r.Path)
-			agentBeadID := beads.PolecatBeadID(p.rigName, p.polecatName)
+			agentBeadID := beads.PolecatBeadIDWithPrefix(nukePrefix, p.rigName, p.polecatName)
 			agentIssue, fields, err := bd.GetAgentBead(agentBeadID)
 
 			// Check 1: Git state
@@ -1475,7 +1490,7 @@ func runPolecatNuke(cmd *cobra.Command, args []string) error {
 		}
 
 		// Step 5: Close agent bead (if exists)
-		agentBeadID := beads.PolecatBeadID(p.rigName, p.polecatName)
+		agentBeadID := beads.PolecatBeadIDWithPrefix(nukePrefix, p.rigName, p.polecatName)
 		closeArgs := []string{"close", agentBeadID, "--reason=nuked"}
 		if sessionID := os.Getenv("CLAUDE_SESSION_ID"); sessionID != "" {
 			closeArgs = append(closeArgs, "--session="+sessionID)
