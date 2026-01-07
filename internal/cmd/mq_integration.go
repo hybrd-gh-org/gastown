@@ -258,14 +258,25 @@ func runMqIntegrationLand(cmd *cobra.Command, args []string) error {
 	// Dry run stops here
 	if mqIntegrationLandDryRun {
 		fmt.Printf("\n%s Dry run complete. Would perform:\n", style.Bold.Render("🔍"))
-		fmt.Printf("  1. Merge %s to main (--no-ff)\n", branchName)
-		if !mqIntegrationLandSkipTests {
-			fmt.Printf("  2. Run tests on main\n")
+		if mqIntegrationLandPR {
+			fmt.Printf("  1. Push %s to origin\n", branchName)
+			fmt.Printf("  2. Create PR via gh pr create targeting main\n")
+			fmt.Printf("  3. Return PR URL\n")
+		} else {
+			fmt.Printf("  1. Merge %s to main (--no-ff)\n", branchName)
+			if !mqIntegrationLandSkipTests {
+				fmt.Printf("  2. Run tests on main\n")
+			}
+			fmt.Printf("  3. Push main to origin\n")
+			fmt.Printf("  4. Delete integration branch (local and remote)\n")
+			fmt.Printf("  5. Update epic status to closed\n")
 		}
-		fmt.Printf("  3. Push main to origin\n")
-		fmt.Printf("  4. Delete integration branch (local and remote)\n")
-		fmt.Printf("  5. Update epic status to closed\n")
 		return nil
+	}
+
+	// --pr mode: create PR instead of direct merge
+	if mqIntegrationLandPR {
+		return runIntegrationLandPR(g, branchName, epic)
 	}
 
 	// Ensure working directory is clean
@@ -589,6 +600,49 @@ func printIntegrationStatus(output *IntegrationStatusOutput) error {
 			fmt.Printf("  %-12s  %s%s\n", mr.ID, mr.Title, style.Dim.Render(statusInfo))
 		}
 	}
+
+	return nil
+}
+
+// runIntegrationLandPR creates a PR to main instead of merging directly.
+func runIntegrationLandPR(g *git.Git, branchName string, epic *beads.Issue) error {
+	// 1. Push integration branch to origin
+	fmt.Printf("Pushing %s to origin...\n", branchName)
+	if err := g.Push("origin", branchName, false); err != nil {
+		return fmt.Errorf("pushing to origin: %w", err)
+	}
+	fmt.Printf("  %s Pushed to origin\n", style.Bold.Render("✓"))
+
+	// 2. Create PR via gh pr create
+	fmt.Printf("Creating pull request...\n")
+
+	prTitle := fmt.Sprintf("Merge %s: %s", branchName, epic.Title)
+	prBody := fmt.Sprintf("Epic: %s\n\nThis PR lands the integration branch for epic %s.", epic.ID, epic.ID)
+
+	cmd := exec.Command("gh", "pr", "create",
+		"--base", "main",
+		"--head", branchName,
+		"--title", prTitle,
+		"--body", prBody,
+	)
+	cmd.Dir = g.WorkDir()
+
+	output, err := cmd.Output()
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return fmt.Errorf("gh pr create failed: %s", string(exitErr.Stderr))
+		}
+		return fmt.Errorf("gh pr create failed: %w", err)
+	}
+
+	prURL := strings.TrimSpace(string(output))
+	fmt.Printf("  %s PR created\n", style.Bold.Render("✓"))
+
+	// 3. Success output with PR URL
+	fmt.Printf("\n%s Successfully created PR for integration branch\n", style.Bold.Render("✓"))
+	fmt.Printf("  Epic:   %s\n", epic.ID)
+	fmt.Printf("  Branch: %s → main\n", branchName)
+	fmt.Printf("  PR:     %s\n", prURL)
 
 	return nil
 }
