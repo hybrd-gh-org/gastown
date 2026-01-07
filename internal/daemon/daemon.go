@@ -730,7 +730,9 @@ func (d *Daemon) checkPolecatHealth(rigName, polecatName string) {
 	}
 
 	// Session is dead. Check if the polecat has work-on-hook.
-	agentBeadID := beads.PolecatBeadID(rigName, polecatName)
+	// Use the rig's configured prefix (not hardcoded "gt-") for agent bead lookup
+	prefix := beads.GetPrefixForRig(d.config.TownRoot, rigName)
+	agentBeadID := beads.PolecatBeadIDWithPrefix(prefix, rigName, polecatName)
 	info, err := d.getAgentBeadInfo(agentBeadID)
 	if err != nil {
 		// Agent bead doesn't exist or error - polecat might not be registered

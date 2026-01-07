@@ -91,13 +91,11 @@ func (m *Manager) assigneeID(name string) string {
 // agentBeadID returns the agent bead ID for a polecat.
 // Format: "<prefix>-<rig>-polecat-<name>" (e.g., "gt-gastown-polecat-Toast", "bd-beads-polecat-obsidian")
 // The prefix is looked up from routes.jsonl to support rigs with custom prefixes.
+// Falls back to "gt" prefix if town root cannot be found (GetPrefixForRig handles this).
 func (m *Manager) agentBeadID(name string) string {
 	// Find town root to lookup prefix from routes.jsonl
-	townRoot, err := workspace.Find(m.rig.Path)
-	if err != nil || townRoot == "" {
-		// Fall back to default prefix
-		return beads.PolecatBeadID(m.rig.Name, name)
-	}
+	townRoot, _ := workspace.Find(m.rig.Path)
+	// GetPrefixForRig returns "gt" as default if townRoot is empty or routes not found
 	prefix := beads.GetPrefixForRig(townRoot, m.rig.Name)
 	return beads.PolecatBeadIDWithPrefix(prefix, m.rig.Name, name)
 }
