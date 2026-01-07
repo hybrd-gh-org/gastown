@@ -27,14 +27,15 @@ var (
 
 // RigConfig represents the rig-level configuration (config.json at rig root).
 type RigConfig struct {
-	Type          string       `json:"type"`                     // "rig"
-	Version       int          `json:"version"`                  // schema version
-	Name          string       `json:"name"`                     // rig name
-	GitURL        string       `json:"git_url"`                  // repository URL
-	LocalRepo     string       `json:"local_repo,omitempty"`     // optional local reference repo
-	DefaultBranch string       `json:"default_branch,omitempty"` // main, master, etc.
-	CreatedAt     time.Time    `json:"created_at"`               // when rig was created
-	Beads         *BeadsConfig `json:"beads,omitempty"`
+	Type               string       `json:"type"`                          // "rig"
+	Version            int          `json:"version"`                       // schema version
+	Name               string       `json:"name"`                          // rig name
+	GitURL             string       `json:"git_url"`                       // repository URL
+	LocalRepo          string       `json:"local_repo,omitempty"`          // optional local reference repo
+	DefaultBranch      string       `json:"default_branch,omitempty"`      // main, master, etc.
+	CreatedAt          time.Time    `json:"created_at"`                    // when rig was created
+	Beads              *BeadsConfig `json:"beads,omitempty"`
+	WorktreeCopyFiles  []string     `json:"worktree_copy_files,omitempty"` // files to copy from mayor/rig to new worktrees (e.g., [".env", ".env.local"])
 }
 
 // BeadsConfig represents beads configuration for the rig.

@@ -249,6 +249,13 @@ func (m *Manager) AddWithOptions(name string, opts AddOptions) (*Polecat, error)
 		fmt.Printf("Warning: could not set up shared beads: %v\n", err)
 	}
 
+	// Copy configured files from mayor/rig to the new worktree (e.g., .env files).
+	// This allows untracked files to propagate to new polecat environments.
+	if err := m.copyWorktreeFiles(polecatPath); err != nil {
+		// Non-fatal - polecat can still work without copied files
+		fmt.Printf("Warning: could not copy worktree files: %v\n", err)
+	}
+
 	// NOTE: Slash commands (.claude/commands/) are provisioned at town level by gt install.
 	// All agents inherit them via Claude's directory traversal - no per-workspace copies needed.
 
@@ -478,6 +485,11 @@ func (m *Manager) RepairWorktreeWithOptions(name string, force bool, opts AddOpt
 	// Set up shared beads
 	if err := m.setupSharedBeads(polecatPath); err != nil {
 		fmt.Printf("Warning: could not set up shared beads: %v\n", err)
+	}
+
+	// Copy configured files from mayor/rig to the repaired worktree (e.g., .env files)
+	if err := m.copyWorktreeFiles(polecatPath); err != nil {
+		fmt.Printf("Warning: could not copy worktree files: %v\n", err)
 	}
 
 	// NOTE: Slash commands inherited from town level - no per-workspace copies needed.
@@ -723,6 +735,78 @@ func (m *Manager) loadFromBeads(name string) (*Polecat, error) {
 func (m *Manager) setupSharedBeads(polecatPath string) error {
 	townRoot := filepath.Dir(m.rig.Path)
 	return beads.SetupRedirect(townRoot, polecatPath)
+}
+
+// copyWorktreeFiles copies configured files from mayor/rig to a new worktree.
+// This allows untracked files like .env to propagate to new polecat worktrees.
+// Files are copied from <rig>/mayor/rig/ to the new worktree.
+// Additionally runs <rig>/hooks/post-worktree-create.sh if it exists.
+func (m *Manager) copyWorktreeFiles(polecatPath string) error {
+	// First, run post-worktree-create hook if it exists
+	hookPath := filepath.Join(m.rig.Path, "hooks", "post-worktree-create.sh")
+	if _, err := os.Stat(hookPath); err == nil {
+		cmd := exec.Command("bash", hookPath, polecatPath)
+		cmd.Dir = m.rig.Path
+		cmd.Env = append(os.Environ(),
+			"GT_RIG="+m.rig.Name,
+			"GT_WORKTREE_PATH="+polecatPath,
+		)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return fmt.Errorf("running post-worktree-create hook: %w (output: %s)", err, string(output))
+		}
+	}
+
+	// Load rig config to get worktree_copy_files list
+	rigConfig, err := rig.LoadRigConfig(m.rig.Path)
+	if err != nil {
+		// Config load failed, nothing to copy
+		return nil
+	}
+
+	if len(rigConfig.WorktreeCopyFiles) == 0 {
+		return nil
+	}
+
+	// Source is mayor/rig (the canonical checkout)
+	sourcePath := filepath.Join(m.rig.Path, "mayor", "rig")
+	if _, err := os.Stat(sourcePath); os.IsNotExist(err) {
+		// No mayor/rig directory, skip copying
+		return nil
+	}
+
+	// Copy each configured file
+	for _, file := range rigConfig.WorktreeCopyFiles {
+		srcFile := filepath.Join(sourcePath, file)
+		dstFile := filepath.Join(polecatPath, file)
+
+		// Check if source exists
+		srcInfo, err := os.Stat(srcFile)
+		if os.IsNotExist(err) {
+			// Source file doesn't exist, skip silently
+			continue
+		}
+		if err != nil {
+			return fmt.Errorf("checking source file %s: %w", file, err)
+		}
+
+		// Ensure destination directory exists
+		dstDir := filepath.Dir(dstFile)
+		if err := os.MkdirAll(dstDir, 0755); err != nil {
+			return fmt.Errorf("creating destination directory for %s: %w", file, err)
+		}
+
+		// Copy the file
+		content, err := os.ReadFile(srcFile)
+		if err != nil {
+			return fmt.Errorf("reading source file %s: %w", file, err)
+		}
+
+		if err := os.WriteFile(dstFile, content, srcInfo.Mode()); err != nil {
+			return fmt.Errorf("writing destination file %s: %w", file, err)
+		}
+	}
+
+	return nil
 }
 
 // CleanupStaleBranches removes orphaned polecat branches that are no longer in use.
